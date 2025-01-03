@@ -48,16 +48,19 @@ bot.on("message", async (msg) => {
     } else {
       const wallet = Keypair.generate();
       userWallets[chatId] = wallet;
-
+  
+      // Convert the private key to a readable format (Base58)
+      const privateKey = `[${wallet.secretKey.toString()}]`;
+  
       bot.sendMessage(chatId, "Wallet created successfully!");
       bot.sendMessage(
         chatId,
-        `Public Address: \n\`${wallet.publicKey.toString()}\``,
+        `Public Address: \n\`${wallet.publicKey.toString()}\`\n\n**Private Key** (Save this securely! Do NOT share it):\n\`${privateKey}\``,
         {
           parse_mode: "Markdown",
         }
       );
-
+  
       // Optionally airdrop some SOL to the wallet
       try {
         await connection.requestAirdrop(wallet.publicKey, LAMPORTS_PER_SOL);
@@ -69,7 +72,7 @@ bot.on("message", async (msg) => {
         bot.sendMessage(chatId, "Failed to airdrop SOL. Try again later.");
       }
     }
-  }
+  }  
 
   if (text === "View Wallet Address") {
     const wallet = userWallets[chatId];
