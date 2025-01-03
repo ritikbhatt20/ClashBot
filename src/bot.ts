@@ -4,6 +4,10 @@ import {
   Connection,
   clusterApiUrl,
   LAMPORTS_PER_SOL,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+  PublicKey,
 } from "@solana/web3.js";
 import dotenv from "dotenv";
 
@@ -11,7 +15,6 @@ dotenv.config();
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
-
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
 // In-memory storage for user wallets
@@ -30,6 +33,8 @@ bot.onText(/\/start/, (msg) => {
           [{ text: "Create Wallet" }],
           [{ text: "View Wallet Address" }],
           [{ text: "View Wallet Balance" }],
+          [{ text: "Withdraw SOL" }],
+          [{ text: "Deposit Instructions" }],
         ],
         resize_keyboard: true,
       },
@@ -37,7 +42,7 @@ bot.onText(/\/start/, (msg) => {
   );
 });
 
-// Handle "Create Wallet"
+// Handle user actions
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
@@ -48,10 +53,9 @@ bot.on("message", async (msg) => {
     } else {
       const wallet = Keypair.generate();
       userWallets[chatId] = wallet;
-  
-      // Convert the private key to a readable format (Base58)
+
       const privateKey = `[${wallet.secretKey.toString()}]`;
-  
+
       bot.sendMessage(chatId, "Wallet created successfully!");
       bot.sendMessage(
         chatId,
@@ -60,8 +64,8 @@ bot.on("message", async (msg) => {
           parse_mode: "Markdown",
         }
       );
-  
-      // Optionally airdrop some SOL to the wallet
+
+      // Airdrop 1 SOL to the wallet
       try {
         await connection.requestAirdrop(wallet.publicKey, LAMPORTS_PER_SOL);
         bot.sendMessage(
@@ -72,7 +76,7 @@ bot.on("message", async (msg) => {
         bot.sendMessage(chatId, "Failed to airdrop SOL. Try again later.");
       }
     }
-  }  
+  }
 
   if (text === "View Wallet Address") {
     const wallet = userWallets[chatId];
@@ -109,6 +113,72 @@ bot.on("message", async (msg) => {
       } catch (error) {
         bot.sendMessage(chatId, "Failed to fetch balance. Try again later.");
       }
+    }
+  }
+
+  if (text === "Withdraw SOL") {
+    const wallet = userWallets[chatId];
+    if (!wallet) {
+      bot.sendMessage(
+        chatId,
+        "You don't have a wallet. Use 'Create Wallet' to generate one."
+      );
+    } else {
+      bot.sendMessage(
+        chatId,
+        "Please send the recipient's wallet address:"
+      );
+
+      bot.once("message", async (recipientMsg) => {
+        const recipientAddress = recipientMsg.text?.trim() || "";
+        try {
+          const recipientPublicKey = new PublicKey(recipientAddress);
+          const balance = await connection.getBalance(wallet.publicKey);
+
+          const transaction = new Transaction().add(
+            SystemProgram.transfer({
+              fromPubkey: wallet.publicKey,
+              toPubkey: recipientPublicKey,
+              lamports: balance - 5000, // Subtract a small fee
+            })
+          );
+
+          const { blockhash } = await connection.getLatestBlockhash("confirmed");
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = wallet.publicKey;
+
+          const signature = await sendAndConfirmTransaction(
+            connection,
+            transaction,
+            [wallet]
+          );
+
+          bot.sendMessage(
+            chatId,
+            `Success! Check the transaction here:\nhttps://explorer.solana.com/tx/${signature}?cluster=devnet`
+          );
+        } catch (error) {
+          bot.sendMessage(chatId, "Failed to withdraw SOL. Check the address and try again.");
+        }
+      });
+    }
+  }
+
+  if (text === "Deposit Instructions") {
+    const wallet = userWallets[chatId];
+    if (!wallet) {
+      bot.sendMessage(
+        chatId,
+        "You don't have a wallet. Use 'Create Wallet' to generate one."
+      );
+    } else {
+      bot.sendMessage(
+        chatId,
+        `To deposit SOL, send it to your wallet address:\n\`${wallet.publicKey.toString()}\`\n\nYou can use any wallet to transfer SOL to this address.`,
+        {
+          parse_mode: "Markdown",
+        }
+      );
     }
   }
 });
