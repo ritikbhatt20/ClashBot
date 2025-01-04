@@ -20,34 +20,30 @@ const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 // In-memory storage for user wallets
 const userWallets: { [userId: number]: Keypair } = {};
 
-// Start command
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-
-  bot.sendMessage(
-    chatId,
-    "Welcome to the Solana Wallet Bot! Use the dashboard below:",
-    {
-      reply_markup: {
-        keyboard: [
-          [{ text: "Create Wallet" }],
-          [{ text: "View Wallet Address" }],
-          [{ text: "View Wallet Balance" }],
-          [{ text: "Withdraw SOL" }],
-          [{ text: "Deposit Instructions" }],
-        ],
-        resize_keyboard: true,
-      },
-    }
-  );
-});
-
 // Handle user actions
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
 
-  if (text === "Create Wallet") {
+  if (text === "/start") {
+    bot.sendMessage(
+      chatId,
+      "Welcome to the Solana Wallet Bot! Use the dashboard below:",
+      {
+        reply_markup: {
+          keyboard: [
+            [{ text: "Create Wallet" }],
+            [{ text: "View Wallet Address" }],
+            [{ text: "View Wallet Balance" }],
+            [{ text: "Withdraw SOL" }],
+            [{ text: "Deposit Instructions" }],
+          ],
+          resize_keyboard: true,
+        },
+      }
+    );
+  }
+  else if (text === "Create Wallet") {
     if (userWallets[chatId]) {
       bot.sendMessage(chatId, "You already have a wallet!");
     } else {
@@ -78,7 +74,7 @@ bot.on("message", async (msg) => {
     }
   }
 
-  if (text === "View Wallet Address") {
+  else if (text === "View Wallet Address") {
     const wallet = userWallets[chatId];
     if (!wallet) {
       bot.sendMessage(
@@ -96,7 +92,7 @@ bot.on("message", async (msg) => {
     }
   }
 
-  if (text === "View Wallet Balance") {
+  else if (text === "View Wallet Balance") {
     const wallet = userWallets[chatId];
     if (!wallet) {
       bot.sendMessage(
@@ -116,7 +112,7 @@ bot.on("message", async (msg) => {
     }
   }
 
-  if (text === "Withdraw SOL") {
+  else if (text === "Withdraw SOL") {
     const wallet = userWallets[chatId];
     if (!wallet) {
       bot.sendMessage(
@@ -124,47 +120,68 @@ bot.on("message", async (msg) => {
         "You don't have a wallet. Use 'Create Wallet' to generate one."
       );
     } else {
-      bot.sendMessage(
-        chatId,
-        "Please send the recipient's wallet address:"
-      );
+      bot.sendMessage(chatId, "Please send the recipient's wallet address:");
 
       bot.once("message", async (recipientMsg) => {
         const recipientAddress = recipientMsg.text?.trim() || "";
         try {
           const recipientPublicKey = new PublicKey(recipientAddress);
-          const balance = await connection.getBalance(wallet.publicKey);
 
-          const transaction = new Transaction().add(
-            SystemProgram.transfer({
-              fromPubkey: wallet.publicKey,
-              toPubkey: recipientPublicKey,
-              lamports: balance - 5000, // Subtract a small fee
-            })
-          );
+          bot.sendMessage(chatId, "How much SOL do you want to transfer?");
+          bot.once("message", async (amountMsg) => {
+            const amountText = amountMsg.text?.trim() || "";
+            const amountLamports = parseFloat(amountText) * LAMPORTS_PER_SOL;
 
-          const { blockhash } = await connection.getLatestBlockhash("confirmed");
-          transaction.recentBlockhash = blockhash;
-          transaction.feePayer = wallet.publicKey;
+            if (isNaN(amountLamports) || amountLamports <= 0) {
+              bot.sendMessage(chatId, "Invalid amount. Try again.");
+              return;
+            }
 
-          const signature = await sendAndConfirmTransaction(
-            connection,
-            transaction,
-            [wallet]
-          );
+            const balance = await connection.getBalance(wallet.publicKey);
+            if (amountLamports + 5000 > balance) {
+              bot.sendMessage(chatId, "Insufficient balance.");
+              return;
+            }
 
-          bot.sendMessage(
-            chatId,
-            `Success! Check the transaction here:\nhttps://explorer.solana.com/tx/${signature}?cluster=devnet`
-          );
+            const transaction = new Transaction().add(
+              SystemProgram.transfer({
+                fromPubkey: wallet.publicKey,
+                toPubkey: recipientPublicKey,
+                lamports: amountLamports,
+              })
+            );
+
+            const { blockhash } = await connection.getLatestBlockhash(
+              "confirmed"
+            );
+            transaction.recentBlockhash = blockhash;
+            transaction.feePayer = wallet.publicKey;
+
+            try {
+              const signature = await sendAndConfirmTransaction(
+                connection,
+                transaction,
+                [wallet]
+              );
+              bot.sendMessage(
+                chatId,
+                `Success! Check the transaction here:\nhttps://explorer.solana.com/tx/${signature}?cluster=devnet`
+              );
+            } catch (error) {
+              bot.sendMessage(
+                chatId,
+                "Transaction failed. Please try again."
+              );
+            }
+          });
         } catch (error) {
-          bot.sendMessage(chatId, "Failed to withdraw SOL. Check the address and try again.");
+          bot.sendMessage(chatId, "Invalid wallet address. Try again.");
         }
       });
     }
   }
 
-  if (text === "Deposit Instructions") {
+  else if (text === "Deposit Instructions") {
     const wallet = userWallets[chatId];
     if (!wallet) {
       bot.sendMessage(
@@ -177,9 +194,12 @@ bot.on("message", async (msg) => {
         `To deposit SOL, send it to your wallet address:\n\`${wallet.publicKey.toString()}\`\n\nYou can use any wallet to transfer SOL to this address.`,
         {
           parse_mode: "Markdown",
-        }
+        } 
       );
     }
+  }
+  else {
+    bot.sendMessage(chatId, "Invalid command. Please choose a valid option from the dashboard.");
   }
 });
 
