@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { userWallets } from "../index";
-import { connection } from "../utils/connection";
+import { connection } from "../config/constants";
 
 export const viewWalletBalance = async (bot: TelegramBot, chatId: number) => {
   const wallet = userWallets[chatId];
