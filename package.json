@@ -11,9 +11,13 @@
   "description": "",
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
+    "@types/pg": "^8.11.10",
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
-    "node-telegram-bot-api": "^0.66.0"
+    "node-telegram-bot-api": "^0.66.0",
+    "pg": "^8.11.3",
+    "pg-pool": "^3.6.1",
+    "typeorm": "^0.3.20"
   },
   "devDependencies": {
     "@types/node": "^22.10.4",

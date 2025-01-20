@@ -60,10 +60,25 @@ export async function placeBet(
       return;
     }
 
+    // Validate stars prediction
+    if (predictedStars < 0 || predictedStars > 3) {
+      await bot.sendMessage(chatId, "Invalid star prediction! Please choose between 0 and 3 stars.");
+      return;
+    }
+
+    // Check if user has already attacked this target
+    const userMember = warInfo.clan.members.find(
+      (member: any) => member.tag === userProfile.playerTag
+    );
+    if (userMember?.attacks?.some((attack: any) => attack.defenderTag === targetMember.tag)) {
+      await bot.sendMessage(chatId, "You have already attacked this target! Please choose another opponent.");
+      return;
+    }
+
     const wallet = userWallets[chatId];
     const balance = await connection.getBalance(wallet.publicKey);
     
-    if (balance < amount * LAMPORTS_PER_SOL) {
+    if (balance <= amount * LAMPORTS_PER_SOL) {
       await bot.sendMessage(chatId, "Insufficient balance for this bet!");
       return;
     }
