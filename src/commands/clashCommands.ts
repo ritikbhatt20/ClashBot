@@ -4,7 +4,7 @@ import { getPlayerInfo, getCurrentWar } from "../utils/clashApi";
 import { transferLamportsToEscrow } from "../utils/escrow";
 import { connection, MULTIPLIER } from "../config/constants";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { StateManager } from "../stateManager";
+import { StateManager } from "../services/stateManager";
 
 export async function registerPlayer(
   bot: TelegramBot,
@@ -47,7 +47,7 @@ export async function placeBet(
     }
 
     const warInfo = await getCurrentWar(userProfile.clanTag);
-    if (warInfo.state !== "inWar") {
+    if (warInfo.state !== "inWar" && warInfo.state !== "preparation") {
       await bot.sendMessage(chatId, "Your clan is not currently in war!");
       return;
     }
@@ -86,7 +86,7 @@ export async function placeBet(
     const escrowAccount = await transferLamportsToEscrow(amount, wallet);
     
     // Update state using state manager
-    stateManager.setState(chatId, {
+    await stateManager.setState(chatId, {
       action: "betting",
       data: {
         betAmount: amount,
@@ -118,7 +118,7 @@ export async function verifyAttack(
   try {
     console.log("Starting verification for chatId:", chatId);
     
-    const userState = stateManager.getState(chatId);
+    const userState = await stateManager.getState(chatId);
     console.log("Current userState:", userState);
 
     const userProfile = userProfiles[chatId];
